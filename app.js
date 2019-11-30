@@ -22,6 +22,10 @@ let refresh_token;
 let current_id = "";
 let current_bpm = 0;
 let current_context = "";
+let refresher;
+
+let minGap = 30*1000*60; //30min
+let randomTime = 60*1000*60; //60min
 
 function changeSongDetails(id, name, artists, bpm, context) {
   current_bpm = bpm;
@@ -30,6 +34,20 @@ function changeSongDetails(id, name, artists, bpm, context) {
 
   if(id != null)
     console.log("Currently playing: " + name + "\nBy: " + artists.join(", ") + "\nBPM: " + current_bpm + "\n");
+}
+
+function tequilaTime() {
+  if(current_id != null) {
+    //TODO Insert Tequila song
+    //TODO How dafuq back to playlist???
+    //Context (playlist) speichern, Tequila abspielen
+    //Falls Playlist vorhanden, Position des vorherigen Tracks herausfinden und Song danach abspielen
+    //Sonst fallback Playlist oder recommendations?
+  }
+
+  const newTime = minGap + Math.random()*randomTime;
+  setTimeout(tequilaTime, newTime);
+  console.log("Next Tequila time in: " + Math.floor(newTime/60000) + "min");
 }
 
 function updateBPM() {
@@ -50,6 +68,8 @@ function updateBPM() {
       if(changed_id == current_id && changed_context == current_context)
         return;
 
+      console.log(body);
+
       var options = {
         url: "https://api.spotify.com/v1/audio-features/" + changed_id,
         headers: { 'Authorization': 'Bearer ' + access_token },
@@ -65,7 +85,8 @@ function updateBPM() {
         }
       });
     } else {
-      changeSongDetails(null, null, null, null, null);
+      if(current_id != null) 
+        changeSongDetails(null, null, null, null, null);
       console.log("No song currently playing");
     }
   });
@@ -105,6 +126,7 @@ app.get('/login', function(req, res) {
   res.redirect('https://accounts.spotify.com/authorize?' +
     querystring.stringify({
       response_type: 'code',
+      show_dialog: true,
       client_id: client_id,
       scope: scope,
       redirect_uri: redirect_uri,
@@ -136,7 +158,7 @@ app.get('/callback', function(req, res) {
         grant_type: 'authorization_code'
       },
       headers: {
-        'Authorization': 'Basic ' + (new Buffer(client_id + ':' + client_secret).toString('base64'))
+        'Authorization': 'Basic ' + (Buffer.from(client_id + ':' + client_secret).toString('base64'))
       },
       json: true
     };
@@ -155,7 +177,7 @@ app.get('/callback', function(req, res) {
 
         // use the access token to access the Spotify Web API
         request.get(options, function(error, response, body) {
-          console.log(body);
+          console.log("Currently logged in: " + body.display_name);
         });
 
         // we can also pass the token to the browser to make requests from there
@@ -165,7 +187,9 @@ app.get('/callback', function(req, res) {
             refresh_token: refresh_token
           }));
 
-        bpmupdater = setInterval(function() { updateBPM(); }, 5000);
+        clearInterval(refresher);
+        refresher = setInterval(function() { updateBPM(); }, 5000);
+        tequilaTime();
       } else {
         res.redirect('/#' +
           querystring.stringify({
@@ -182,7 +206,7 @@ app.get('/refresh_token', function(req, res) {
   var refresh_token = req.query.refresh_token;
   var authOptions = {
     url: 'https://accounts.spotify.com/api/token',
-    headers: { 'Authorization': 'Basic ' + (new Buffer(client_id + ':' + client_secret).toString('base64')) },
+    headers: { 'Authorization': 'Basic ' + (Buffer.from(client_id + ':' + client_secret).toString('base64')) },
     form: {
       grant_type: 'refresh_token',
       refresh_token: refresh_token
@@ -201,8 +225,16 @@ app.get('/refresh_token', function(req, res) {
 });
 
 app.get("/logout", function(req, res) {
+  clearInterval(refresher);
+  access_token = null;
+  refresh_token = null;
 
-})
+  console.log("Logging out...");
+
+  changeSongDetails(null, null, null, null, null);
+
+  res.redirect('/');
+});
 
 console.log('Listening on 8888');
 app.listen(8888);

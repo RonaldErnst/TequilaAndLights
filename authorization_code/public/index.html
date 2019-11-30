@@ -62,6 +62,8 @@
     <script src="//cdnjs.cloudflare.com/ajax/libs/handlebars.js/2.0.0-alpha.1/handlebars.min.js"></script>
     <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script>
     <script>
+      let access_token, refresh_token;
+
       (function() {
 
         /**
@@ -88,9 +90,9 @@
 
         var params = getHashParams();
 
-        var access_token = params.access_token,
-            refresh_token = params.refresh_token,
-            error = params.error;
+        access_token = params.access_token;
+        refresh_token = params.refresh_token;
+        var  error = params.error;
 
         if (error) {
           alert('There was an error during the authentication');
@@ -133,9 +135,39 @@
                 refresh_token: refresh_token
               });
             });
-          }, false);
+          }, false); 
         }
       })();
+      
+      let bpm = 0;
+
+      function updateBPM() {
+        $.ajax({
+          url: 'https://api.spotify.com/v1/me/player/currently-playing',
+          headers: {
+            'Authorization': 'Bearer ' + access_token
+          },
+          success: function(response) {
+            $.ajax({
+              url: "https://api.spotify.com/v1/audio-features/" + response.item.id,
+              headers: {
+                'Authorization': 'Bearer ' + access_token
+              },
+              success: function(response) {
+                bpm = response.tempo;
+              },
+              error: function() {
+                console.log("Song not found");
+              }
+            });
+          },
+          error: function() {
+            console.log("No song currently playing");
+          }
+        });
+      }
+
+      setInterval(function() { updateBPM(); console.log(bpm); }, 5000);
     </script>
   </body>
 </html>

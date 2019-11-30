@@ -138,36 +138,6 @@
           }, false); 
         }
       })();
-      
-      let bpm = 0;
-
-      function updateBPM() {
-        $.ajax({
-          url: 'https://api.spotify.com/v1/me/player/currently-playing',
-          headers: {
-            'Authorization': 'Bearer ' + access_token
-          },
-          success: function(response) {
-            $.ajax({
-              url: "https://api.spotify.com/v1/audio-features/" + response.item.id,
-              headers: {
-                'Authorization': 'Bearer ' + access_token
-              },
-              success: function(response) {
-                bpm = response.tempo;
-              },
-              error: function() {
-                console.log("Song not found");
-              }
-            });
-          },
-          error: function() {
-            console.log("No song currently playing");
-          }
-        });
-      }
-
-      setInterval(function() { updateBPM(); console.log(bpm); }, 5000);
     </script>
   </body>
 </html>

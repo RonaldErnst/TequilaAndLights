@@ -17,6 +17,61 @@ var client_id = 'ad828589f1db40c38368c39fca586f6d'; // Your client id
 var client_secret = 'ad678f85ce5c4615a3214a981aa7d916'; // Your secret
 var redirect_uri = 'http://localhost:8888/callback'; // Your redirect uri
 
+let access_token;
+let refresh_token;
+let current_id = "";
+let current_bpm = 0;
+let current_context = "";
+
+function changeSongDetails(id, name, artists, bpm, context) {
+  current_bpm = bpm;
+  current_id = id;
+  current_context = context;
+
+  if(id != null)
+    console.log("Currently playing: " + name + "\nBy: " + artists.join(", ") + "\nBPM: " + current_bpm + "\n");
+}
+
+function updateBPM() {
+  var options = {
+    url: 'https://api.spotify.com/v1/me/player/currently-playing',
+    headers: { 'Authorization': 'Bearer ' + access_token },
+    json: true
+  };
+
+  // use the access token to access the Spotify Web API
+  request.get(options, function(error, response, body) {
+    if(!error && response.statusCode === 200) {
+      let changed_id = body.item.id;
+      let changed_context = body.context.external_urls.href;
+      let changed_name = body.item.name;
+      let changed_artists = body.item.artists.map(a => a.name);
+
+      if(changed_id == current_id && changed_context == current_context)
+        return;
+
+      var options = {
+        url: "https://api.spotify.com/v1/audio-features/" + changed_id,
+        headers: { 'Authorization': 'Bearer ' + access_token },
+        json: true
+      };
+
+      request.get(options, function(error, response, body) {
+        if(!error && response.statusCode === 200) {
+          let changed_bpm = body.tempo;
+          changeSongDetails(changed_id, changed_name, changed_artists, changed_bpm, changed_context);
+        } else {
+          console.log("Couldnt fetch song");
+        }
+      });
+    } else {
+      changeSongDetails(null, null, null, null, null);
+      console.log("No song currently playing");
+    }
+  });
+}
+
+
 /**
  * Generates a random string containing numbers and letters
  * @param  {number} length The length of the string
@@ -46,7 +101,7 @@ app.get('/login', function(req, res) {
   res.cookie(stateKey, state);
 
   // your application requests authorization
-  var scope = 'user-read-private user-read-email user-read-currently-playing user-read-playback-state';
+  var scope = 'user-read-private user-read-email user-read-currently-playing user-read-playback-state user-modify-playback-state';
   res.redirect('https://accounts.spotify.com/authorize?' +
     querystring.stringify({
       response_type: 'code',
@@ -89,8 +144,8 @@ app.get('/callback', function(req, res) {
     request.post(authOptions, function(error, response, body) {
       if (!error && response.statusCode === 200) {
 
-        var access_token = body.access_token,
-            refresh_token = body.refresh_token;
+        access_token = body.access_token;
+        refresh_token = body.refresh_token;
 
         var options = {
           url: 'https://api.spotify.com/v1/me',
@@ -109,6 +164,8 @@ app.get('/callback', function(req, res) {
             access_token: access_token,
             refresh_token: refresh_token
           }));
+
+        bpmupdater = setInterval(function() { updateBPM(); }, 5000);
       } else {
         res.redirect('/#' +
           querystring.stringify({
@@ -135,13 +192,17 @@ app.get('/refresh_token', function(req, res) {
 
   request.post(authOptions, function(error, response, body) {
     if (!error && response.statusCode === 200) {
-      var access_token = body.access_token;
+      access_token = body.access_token;
       res.send({
         'access_token': access_token
       });
     }
   });
 });
+
+app.get("/logout", function(req, res) {
+
+})
 
 console.log('Listening on 8888');
 app.listen(8888);

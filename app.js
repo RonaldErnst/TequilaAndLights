@@ -12,6 +12,7 @@ var request = require('request'); // "Request" library
 var cors = require('cors');
 var querystring = require('querystring');
 var cookieParser = require('cookie-parser');
+var tal = require("./tequilaAndLights");
 
 var client_id = 'ad828589f1db40c38368c39fca586f6d'; // Your client id
 var client_secret = 'ad678f85ce5c4615a3214a981aa7d916'; // Your secret
@@ -24,72 +25,13 @@ let current_bpm = 0;
 let current_context = "";
 let refresher;
 
-let minGap = 30*1000*60; //30min
-let randomTime = 60*1000*60; //60min
-
 function changeSongDetails(id, name, artists, bpm, context) {
   current_bpm = bpm;
   current_id = id;
   current_context = context;
 
-  if(id != null)
+  if (id != null)
     console.log("Currently playing: " + name + "\nBy: " + artists.join(", ") + "\nBPM: " + current_bpm + "\n");
-}
-
-function tequilaTime() {
-  if(current_id != null) {
-    //TODO Insert Tequila song
-    //TODO How dafuq back to playlist???
-    //Context (playlist) speichern, Tequila abspielen
-    //Falls Playlist vorhanden, Position des vorherigen Tracks herausfinden und Song danach abspielen
-    //Sonst fallback Playlist oder recommendations?
-  }
-
-  const newTime = minGap + Math.random()*randomTime;
-  setTimeout(tequilaTime, newTime);
-  console.log("Next Tequila time in: " + Math.floor(newTime/60000) + "min");
-}
-
-function updateBPM() {
-  var options = {
-    url: 'https://api.spotify.com/v1/me/player/currently-playing',
-    headers: { 'Authorization': 'Bearer ' + access_token },
-    json: true
-  };
-
-  // use the access token to access the Spotify Web API
-  request.get(options, function(error, response, body) {
-    if(!error && response.statusCode === 200) {
-      let changed_id = body.item.id;
-      let changed_context = body.context.external_urls.href;
-      let changed_name = body.item.name;
-      let changed_artists = body.item.artists.map(a => a.name);
-
-      if(changed_id == current_id && changed_context == current_context)
-        return;
-
-      console.log(body);
-
-      var options = {
-        url: "https://api.spotify.com/v1/audio-features/" + changed_id,
-        headers: { 'Authorization': 'Bearer ' + access_token },
-        json: true
-      };
-
-      request.get(options, function(error, response, body) {
-        if(!error && response.statusCode === 200) {
-          let changed_bpm = body.tempo;
-          changeSongDetails(changed_id, changed_name, changed_artists, changed_bpm, changed_context);
-        } else {
-          console.log("Couldnt fetch song");
-        }
-      });
-    } else {
-      if(current_id != null) 
-        changeSongDetails(null, null, null, null, null);
-      console.log("No song currently playing");
-    }
-  });
 }
 
 
@@ -98,7 +40,7 @@ function updateBPM() {
  * @param  {number} length The length of the string
  * @return {string} The generated string
  */
-var generateRandomString = function(length) {
+var generateRandomString = function (length) {
   var text = '';
   var possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
@@ -113,10 +55,10 @@ var stateKey = 'spotify_auth_state';
 var app = express();
 
 app.use(express.static(__dirname + '/public'))
-   .use(cors())
-   .use(cookieParser());
+  .use(cors())
+  .use(cookieParser());
 
-app.get('/login', function(req, res) {
+app.get('/login', function (req, res) {
 
   var state = generateRandomString(16);
   res.cookie(stateKey, state);
@@ -134,7 +76,7 @@ app.get('/login', function(req, res) {
     }));
 });
 
-app.get('/callback', function(req, res) {
+app.get('/callback', function (req, res) {
 
   // your application requests refresh and access tokens
   // after checking the state parameter
@@ -163,7 +105,7 @@ app.get('/callback', function(req, res) {
       json: true
     };
 
-    request.post(authOptions, function(error, response, body) {
+    request.post(authOptions, function (error, response, body) {
       if (!error && response.statusCode === 200) {
 
         access_token = body.access_token;
@@ -176,7 +118,7 @@ app.get('/callback', function(req, res) {
         };
 
         // use the access token to access the Spotify Web API
-        request.get(options, function(error, response, body) {
+        request.get(options, function (error, response, body) {
           console.log("Currently logged in: " + body.display_name);
         });
 
@@ -187,9 +129,23 @@ app.get('/callback', function(req, res) {
             refresh_token: refresh_token
           }));
 
+        //Start bpm updater
         clearInterval(refresher);
-        refresher = setInterval(function() { updateBPM(); }, 5000);
-        tequilaTime();
+        tal.updateBPM(access_token, current_id, changeSongDetails);
+        refresher = setInterval(function () {
+          tal.updateBPM(access_token, current_id, changeSongDetails);
+        }, 5000);
+
+        //Start Tequila timer
+
+        // setTimeout(function() {
+        //   if(!current_context)
+
+        //   let playlist = current_context.uri.split(":");
+        //   playlist = playlist[playlist.length - 1];
+  
+        //   tal.tequilaTime(access_token, current_id, playlist);
+        // }, 20*60*1000);
       } else {
         res.redirect('/#' +
           querystring.stringify({
@@ -200,7 +156,7 @@ app.get('/callback', function(req, res) {
   }
 });
 
-app.get('/refresh_token', function(req, res) {
+app.get('/refresh_token', function (req, res) {
 
   // requesting access token from refresh token
   var refresh_token = req.query.refresh_token;
@@ -214,7 +170,7 @@ app.get('/refresh_token', function(req, res) {
     json: true
   };
 
-  request.post(authOptions, function(error, response, body) {
+  request.post(authOptions, function (error, response, body) {
     if (!error && response.statusCode === 200) {
       access_token = body.access_token;
       res.send({
@@ -224,7 +180,7 @@ app.get('/refresh_token', function(req, res) {
   });
 });
 
-app.get("/logout", function(req, res) {
+app.get("/logout", function (req, res) {
   clearInterval(refresher);
   access_token = null;
   refresh_token = null;
@@ -234,6 +190,17 @@ app.get("/logout", function(req, res) {
   changeSongDetails(null, null, null, null, null);
 
   res.redirect('/');
+});
+
+
+app.get('/tequila', function (req, res) {
+  if(!current_context)
+    return console.log("No context available");
+
+  let playlist = current_context.uri.split(":");
+  playlist = playlist[playlist.length - 1];
+
+  tal.tequilaTime(access_token, current_id, playlist);
 });
 
 console.log('Listening on 8888');

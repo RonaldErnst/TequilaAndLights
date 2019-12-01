@@ -2,9 +2,9 @@
 var request = require('request'); // "Request" library
 var querystring = require('querystring');
 
-let minGap = 30 * 1000 * 60; //30min
-let randomTime = 60 * 1000 * 60; //60min
-let waitTime = 5000;//115000;
+let minGap = 45 * 1000 * 60; //45min
+let randomTime = 45 * 1000 * 60; //45min
+let waitTime = 115000;
 
 module.exports = {
     updateBPM: function (access_token, current_id, callback) {
@@ -46,11 +46,9 @@ module.exports = {
         });
     },
     
-    tequilaTime: function (access_token, current_id, current_playlist) {
-        if (access_token != null) {
-            if (current_playlist) {
-                getPosition(access_token, current_id, current_playlist, 0, playTequila);
-            }
+    tequilaTime: function (access_token, previous_id, playlist_uri) {
+        if (access_token != null && previous_id) {
+            playTequila(access_token, playlist_uri, previous_id);
         }
 
         const newTime = minGap + Math.random() * randomTime;
@@ -59,31 +57,7 @@ module.exports = {
     }
 }
 
-function getPosition(access_token, current_id, current_playlist, offset, callback) {
-    let options = {
-        url: "https://api.spotify.com/v1/playlists/" + current_playlist + "/tracks?fields=total,next,offset,limit,items(track(id))&offset=" + offset,
-        headers: { 'Authorization': 'Bearer ' + access_token },
-        json: true
-    };
-
-    request.get(options, function (error, response, body) {
-        if (!error && response.statusCode === 200) {
-            let tracks = body.items.map(i => i.track.id);
-            let position = tracks.indexOf(current_id);
-
-            if (position >= 0) 
-                callback(access_token, current_playlist, position);
-
-            if (position < 0 && body.next != null)
-                getPosition(access_token, current_id, current_playlist, offset + tracks.length, callback);
-
-        } else {
-            console.log("Couldnt get tracks of playlist", error);
-        }
-    });
-}
-
-function playTequila(access_token, current_playlist, position) {
+function playTequila(access_token, playlist_uri, previous_id) {
     //Tequila abspielen
     let tequila_uri = "spotify:track:5gJKsGij5oGt5H5RSFYXPa";
     let options = {
@@ -97,17 +71,40 @@ function playTequila(access_token, current_playlist, position) {
     };
 
     request.put(options, function (error, response, body) {
-        if (error || response.statusCode !== 204) {
+        if (!error && response.statusCode === 204) {
+            setTimeout(function () {
+                let options;
+
+                if(playlist_uri) {
+                    //Playlist fortsetzen
+                    options = {
+                        url: "https://api.spotify.com/v1/me/player/play",
+                        headers: { 'Authorization': 'Bearer ' + access_token },
+                        body: {
+                            context_uri: playlist_uri,
+                            offset: { "uri": "spotify:track:" + previous_id }
+                        },
+                        json: true
+                    };
+                } else {
+                    //Fallback playlist
+                    options = {
+                        url: "https://api.spotify.com/v1/me/player/play",
+                        headers: { 'Authorization': 'Bearer ' + access_token },
+                        body: {
+                            context_uri: "spotify:playlist:37i9dQZF1DX9EM98aZosoy"
+                        },
+                        json: true
+                    };
+                }
+
+                request.put(options, function (error, response, body) {
+                    if(error || response.statusCode !== 204)
+                        console.log("Error playing track on playlist");
+                });
+            }, waitTime); //Warten bis Tequila vorbei
+        } else {
             console.log("Error playing Tequila");
         }
     });
-
-    //Playlist von vorher wiedergeben oder fallback playlist abspielen
-    setTimeout(function () {
-        if (current_playlist) {
-            console.log("Back to playing " + current_playlist + " at position " + position);
-        } else {
-            console.log("Playing random song");
-        }
-    }, waitTime); //Warten bis Tequila vorbei
 }

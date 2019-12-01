@@ -28,7 +28,7 @@ let refresher;
 function changeSongDetails(id, name, artists, bpm, context) {
   current_bpm = bpm;
   current_id = id;
-  current_context = context;
+  current_context = context? context.uri : null;
 
   if (id != null)
     console.log("Currently playing: " + name + "\nBy: " + artists.join(", ") + "\nBPM: " + current_bpm + "\n");
@@ -137,15 +137,9 @@ app.get('/callback', function (req, res) {
         }, 5000);
 
         //Start Tequila timer
-
-        // setTimeout(function() {
-        //   if(!current_context)
-
-        //   let playlist = current_context.uri.split(":");
-        //   playlist = playlist[playlist.length - 1];
-  
-        //   tal.tequilaTime(access_token, current_id, playlist);
-        // }, 20*60*1000);
+        setTimeout(function() {
+          tal.tequilaTime(access_token, current_id, current_context);
+        }, 45*60*1000);
       } else {
         res.redirect('/#' +
           querystring.stringify({
@@ -197,10 +191,7 @@ app.get('/tequila', function (req, res) {
   if(!current_context)
     return console.log("No context available");
 
-  let playlist = current_context.uri.split(":");
-  playlist = playlist[playlist.length - 1];
-
-  tal.tequilaTime(access_token, current_id, playlist);
+  tal.tequilaTime(access_token, current_id, current_context);
 });
 
 console.log('Listening on 8888');

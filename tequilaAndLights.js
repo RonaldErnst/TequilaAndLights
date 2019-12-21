@@ -1,110 +1,125 @@
+/**
+//Start bpm updater
+clearInterval(refresher);
+tal.updateBPM(access_token, current_id, changeSongDetails);
+refresher = setInterval(function () {
+    tal.updateBPM(access_token, current_id, changeSongDetails);
+}, 5000);
+*/
 
-var request = require('request'); // "Request" library
-var querystring = require('querystring');
+const tequila_uri = "spotify:track:5gJKsGij5oGt5H5RSFYXPa";
+const bpmIntervalTime = 5000;
 
-let minGap = 45 * 1000 * 60; //45min
-let randomTime = 45 * 1000 * 60; //45min
-let waitTime = 115000;
+let tequilaIntervalBase = 45 * 60 * 1000;
+let tequilaIntervalMax = 45 * 60 * 1000;
+
+let bpmInterval;
+let tequilaInterval;
+
+let bpm;
+let context, current_id, current_uri, name, artists;
 
 module.exports = {
-    updateBPM: function (access_token, current_id, callback) {
-        var options = {
-            url: 'https://api.spotify.com/v1/me/player/currently-playing',
-            headers: { 'Authorization': 'Bearer ' + access_token },
-            json: true
-        };
-
-        // use the access token to access the Spotify Web API
-        request.get(options, function (error, response, body) {
-            if (!error && response.statusCode === 200) {
-                let changed_id = body.item.id;
-                let changed_context = body.context;
-                let changed_name = body.item.name;
-                let changed_artists = body.item.artists.map(a => a.name);
-
-                if (changed_id == current_id)
-                    return;
-
-                var options = {
-                    url: "https://api.spotify.com/v1/audio-features/" + changed_id,
-                    headers: { 'Authorization': 'Bearer ' + access_token },
-                    json: true
-                };
-
-                request.get(options, function (error, response, body) {
-                    if (!error && response.statusCode === 200) {
-                        callback(changed_id, changed_name, changed_artists, body.tempo, changed_context);
-                    } else {
-                        console.log("Couldnt fetch song");
-                        return;
-                    }
-                });
-            } else {
-                console.log("No song currently playing");
-                return;
-            }
-        });
+    run: run,
+    reset: function() {
+        clearInterval(bpmInterval);
+        clearInterval(tequilaInterval);
     },
-    
-    tequilaTime: function (access_token, previous_id, playlist_uri) {
-        if (access_token != null && previous_id) {
-            playTequila(access_token, playlist_uri, previous_id);
-        }
+    setIntervalTimes: function(base, max) {
+        tequilaIntervalBase = base * 60 * 1000;
+        tequilaIntervalMax = max * 60 * 1000;
 
-        const newTime = minGap + Math.random() * randomTime;
-        //setTimeout(tequilaTime, newTime);
-        console.log("Next Tequila time in: " + Math.floor(newTime / 60000) + "min");
+        console.log("Base: ", base);
+        console.log("Max: ", max);
     }
 }
 
-function playTequila(access_token, playlist_uri, previous_id) {
-    //Tequila abspielen
-    let tequila_uri = "spotify:track:5gJKsGij5oGt5H5RSFYXPa";
-    let options = {
-        url: "https://api.spotify.com/v1/me/player/play",
-        headers: { 'Authorization': 'Bearer ' + access_token },
-        body: {
-            uris: [tequila_uri],
-            position_ms: 20000
-        },
-        json: true
-    };
+function run(spotifyApi) {
+    module.exports.reset();
 
-    request.put(options, function (error, response, body) {
-        if (!error && response.statusCode === 204) {
-            setTimeout(function () {
-                let options;
+    bpmInterval = setInterval(function() {
+        getSongDetails(spotifyApi);
+    }, bpmIntervalTime);
 
-                if(playlist_uri) {
-                    //Playlist fortsetzen
-                    options = {
-                        url: "https://api.spotify.com/v1/me/player/play",
-                        headers: { 'Authorization': 'Bearer ' + access_token },
-                        body: {
-                            context_uri: playlist_uri,
-                            offset: { "uri": "spotify:track:" + previous_id }
-                        },
-                        json: true
-                    };
-                } else {
-                    //Fallback playlist
-                    options = {
-                        url: "https://api.spotify.com/v1/me/player/play",
-                        headers: { 'Authorization': 'Bearer ' + access_token },
-                        body: {
-                            context_uri: "spotify:playlist:37i9dQZF1DX9EM98aZosoy"
-                        },
-                        json: true
-                    };
-                }
+    let newTime = tequilaIntervalBase + Math.random() * tequilaIntervalMax;
+    console.log("First Tequila time in " + Math.floor(newTime / 60000) + " mins");
+    setTimeout(function() {
+        tequilaTime(spotifyApi);
+    }, newTime);
+}
 
-                request.put(options, function (error, response, body) {
-                    if(error || response.statusCode !== 204)
-                        console.log("Error playing track on playlist");
-                });
-            }, waitTime); //Warten bis Tequila vorbei
-        } else {
-            console.log("Error playing Tequila");
+function getSongDetails(spotifyApi) {
+    spotifyApi.getMyCurrentPlaybackState()
+    .then(function(data) {
+        if(Object.keys(data.body).length == 0) {
+            //console.log("No song currently playing");
+            return null;
         }
+        
+        if(current_id == data.body.item.id && current_uri == data.body.item.uri) 
+            return null;
+
+        current_id = data.body.item.id;
+        current_uri = data.body.item.uri;
+        context = data.body.context;
+        name = data.body.item.name;
+        artists = data.body.item.artists.map(a => a.name);
+
+        return spotifyApi.getAudioFeaturesForTrack(current_id);
+    }).then(function(data) {
+        if(data == null)
+            return;
+
+        bpm = data.body.tempo;
+        console.log("Currently playing: \"" + name + "\" by " + artists.join(", "), "BPM: " + bpm);
+    }).catch(function(err) {
+        console.log(err);
     });
 }
+
+function tequilaTime(spotifyApi) {
+    //play the tequila song
+    let position_ms;
+    const previous_uri = current_uri;
+
+    spotifyApi.getMyCurrentPlaybackState()
+    .then(function(data) {
+        if(Object.keys(data.body).length == 0)
+            return Promise.reject("No Playback device available");
+
+        position_ms = data.body.progress_ms;
+
+        return spotifyApi.play({
+            uris: [tequila_uri]
+        });
+    }).then(function() {
+        return spotifyApi.seek(20000);
+    }).then(function() {
+        //Wait until Tequila is done
+        setTimeout(function(){
+            //Continue previous track
+            const options = context ? {
+                context_uri: context.uri,
+                offset: { "uri": previous_uri }
+            } : {
+                uris: [previous_uri]//context_uri: "spotify:playlist:37i9dQZF1DX9EM98aZosoy" //Fallback playlist
+            };
+
+            spotifyApi.play(options)
+            .then(function() {
+                return spotifyApi.seek(position_ms);
+            }).catch(function(err) {
+                console.log(err);
+            });
+        }, 115000);
+    }).catch(function(err) {
+        console.log(err);
+    });
+    
+    let newTime = tequilaIntervalBase + Math.random() * tequilaIntervalMax;
+    setTimeout(function() {
+        tequilaTime(spotifyApi);
+    }, newTime);
+    console.log("Next Tequila time in " + Math.floor(newTime / 60000) + " mins");
+}
+

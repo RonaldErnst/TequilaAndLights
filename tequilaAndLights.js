@@ -16,7 +16,7 @@ let tequilaIntervalMax = 45 * 60 * 1000;
 let bpmInterval;
 let tequilaInterval;
 
-let beats;
+let beats, track;
 let context, track_id, track_uri, name, artists;
 
 module.exports = {
@@ -71,6 +71,7 @@ function getSongDetails(spotifyApi) {
             return;
 
         beats = data.body.beats;
+        track = data.body.track;
         console.log("Currently playing: \"" + name + "\" by " + artists.join(", "));
     }).catch(function(err) {
         console.log(err);

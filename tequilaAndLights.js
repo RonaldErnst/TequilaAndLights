@@ -49,6 +49,8 @@ function run(spotifyApi) {
 }
 
 function getSongDetails(spotifyApi) {
+    let progress_ms;
+
     spotifyApi.getMyCurrentPlaybackState()
     .then(function(data) {
         if(Object.keys(data.body).length == 0) {
@@ -64,6 +66,7 @@ function getSongDetails(spotifyApi) {
         context = data.body.context;
         name = data.body.item.name;
         artists = data.body.item.artists.map(a => a.name);
+        progress_ms = data.body.progress_ms;
 
         return spotifyApi.getAudioAnalysisForTrack(track_id);
     }).then(function(data) {

@@ -1,9 +1,9 @@
 /**
 //Start bpm updater
 clearInterval(refresher);
-tal.updateBPM(access_token, current_id, changeSongDetails);
+tal.updateBPM(access_token, track_id, changeSongDetails);
 refresher = setInterval(function () {
-    tal.updateBPM(access_token, current_id, changeSongDetails);
+    tal.updateBPM(access_token, track_id, changeSongDetails);
 }, 5000);
 */
 
@@ -16,8 +16,8 @@ let tequilaIntervalMax = 45 * 60 * 1000;
 let bpmInterval;
 let tequilaInterval;
 
-let bpm;
-let context, current_id, current_uri, name, artists;
+let beats;
+let context, track_id, track_uri, name, artists;
 
 module.exports = {
     run: run,
@@ -56,22 +56,22 @@ function getSongDetails(spotifyApi) {
             return null;
         }
         
-        if(current_id == data.body.item.id && current_uri == data.body.item.uri) 
+        if(track_id == data.body.item.id && track_uri == data.body.item.uri) 
             return null;
 
-        current_id = data.body.item.id;
-        current_uri = data.body.item.uri;
+        track_id = data.body.item.id;
+        track_uri = data.body.item.uri;
         context = data.body.context;
         name = data.body.item.name;
         artists = data.body.item.artists.map(a => a.name);
 
-        return spotifyApi.getAudioFeaturesForTrack(current_id);
+        return spotifyApi.getAudioAnalysisForTrack(track_id);
     }).then(function(data) {
         if(data == null)
             return;
 
-        bpm = data.body.tempo;
-        console.log("Currently playing: \"" + name + "\" by " + artists.join(", "), "BPM: " + bpm);
+        beats = data.body.beats;
+        console.log("Currently playing: \"" + name + "\" by " + artists.join(", "));
     }).catch(function(err) {
         console.log(err);
     });
@@ -80,7 +80,7 @@ function getSongDetails(spotifyApi) {
 function tequilaTime(spotifyApi) {
     //play the tequila song
     let position_ms;
-    const previous_uri = current_uri;
+    const previous_uri = track_uri;
 
     spotifyApi.getMyCurrentPlaybackState()
     .then(function(data) {

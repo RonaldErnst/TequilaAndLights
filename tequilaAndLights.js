@@ -6,6 +6,7 @@ refresher = setInterval(function () {
     tal.updateBPM(access_token, track_id, changeSongDetails);
 }, 5000);
 */
+const request = require("request");
 
 const tequila_uri = "spotify:track:5gJKsGij5oGt5H5RSFYXPa";
 const bpmIntervalTime = 5000;
@@ -31,6 +32,15 @@ module.exports = {
 
         console.log("Base: ", base);
         console.log("Max: ", max);
+    },
+    testTequila: function(spotifyApi) {        
+        tequilaTime(spotifyApi);
+
+        let newTime = tequilaIntervalBase + Math.random() * tequilaIntervalMax;
+        console.log("First Tequila time in " + Math.floor(newTime / 60000) + " mins");
+        setTimeout(function() {
+            tequilaTime(spotifyApi);
+        }, newTime);
     }
 }
 
@@ -75,6 +85,18 @@ function getSongDetails(spotifyApi) {
 
         beats = data.body.beats;
         track = data.body.track;
+
+        //Send data to pi
+        request({
+            uri: 'http://192.168.178.31/start',
+            method: 'POST',
+            json: {
+                beats: beats,
+                track: track,
+                progress_ms: progress_ms
+            }
+          }, function(err, req, res) {});
+
         console.log("Currently playing: \"" + name + "\" by " + artists.join(", "));
     }).catch(function(err) {
         console.log(err);
@@ -97,17 +119,34 @@ function tequilaTime(spotifyApi) {
             uris: [tequila_uri]
         });
     }).then(function() {
+        //Send Tequila mode to pi
+        request.post({
+            url: "http://192.168.178.31/mode",
+            body: "tequila"
+        }, function(err, req, res) {});
+
         return spotifyApi.seek(20000);
     }).then(function() {
         //Wait until Tequila is done
         setTimeout(function(){
+            //Change back to beats mode
+            request.post({
+                url: "http://192.168.178.31/mode",
+                body: "beats"
+            }, function(err, req, res) {});
+
             //Continue previous track
-            const options = context ? {
+            let options = context ? {
                 context_uri: context.uri,
                 offset: { "uri": previous_uri }
             } : {
-                uris: [previous_uri]//context_uri: "spotify:playlist:37i9dQZF1DX9EM98aZosoy" //Fallback playlist
+                uris: [previous_uri]
             };
+
+            if(!previous_uri)
+                options = {
+                    context_uri: "spotify:playlist:37i9dQZF1DX9EM98aZosoy"
+                };
 
             spotifyApi.play(options)
             .then(function() {

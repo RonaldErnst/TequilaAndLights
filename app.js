@@ -50,8 +50,11 @@ app.get('/callback', function (req, res) {
       tal.run(spotifyApi);
 
       //Automatically refresh access token after 30 mins
-      const refresh_time = 30 * 60 * 1000;
-      setInterval(refreshToken, refresh_time);
+      const refresh_time = 5 * 60 * 1000;
+      setInterval(function() {
+        refreshToken();
+        console.log("refreshing...");
+      }, refresh_time);
     }).catch(function(err) {
     console.log(err);
   });
@@ -71,6 +74,10 @@ app.get("/logout", function (req, res) {
 
 app.get("/setIntervals", function(req, res) {
   tal.setIntervalTimes(req.query.base, req.query.max);
+});
+
+app.get("/tequila", function(req, res) {
+  tal.testTequila(spotifyApi);
 });
 
 console.log('Listening on 8888');
